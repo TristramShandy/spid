@@ -1,0 +1,11 @@
+spid
+====
+
+A Spider Solitair game for the command line.
+
+You like playing Spider Solitair?
+You love the command line?
+You want to combine the two?
+
+If you have answered yes to all three questions, this program is for you. Also, you are probably me.
+To start playing, just start the program with  ruby spid.rb . Then, at the command prompt type  h<Enter> to access the online help.
