@@ -21,6 +21,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+require 'optparse'
 
 # List of constants
 NrSuit = 4
@@ -29,16 +30,18 @@ NrColumns = 10
 NrDecks = 2
 NrDraws = 5
 
-ColorOutput = true
+# List of default values for command line options
 SuitColor = [20, 30, 90, 160]
-Debug = false # switches debug messages on/off
 
 # Value class holding individual card values
 # Naming was done to keep consistent with the French vocabulary used in Solitair gaiming
 class Valeur
   attr_reader :suit, :val
 
-  def initialize(nr, visible = false)
+  @@colors = SuitColor
+  @@color_output = true
+
+  def initialize(nr, visible)
     @suit, @val = nr.divmod(NrVals)
     @visible = visible
   end
@@ -61,9 +64,9 @@ class Valeur
 
   def to_s
     if @visible
-      if ColorOutput
+      if @@color_output
         # "\e[48;5;#{SuitColor[@suit]}m#{@suit.to_s(NrSuit)}#{@val.to_s(NrVals)}\e[0m"
-        "\e[48;5;#{SuitColor[@suit]}m #{@val.to_s(NrVals)}\e[0m"
+        "\e[48;5;#{@@colors[@suit]}m #{@val.to_s(NrVals)}\e[0m"
       else
         "#{@suit.to_s(NrSuit)}#{@val.to_s(NrVals)}"
       end
@@ -71,22 +74,40 @@ class Valeur
       "XX"
     end
   end
+
+  # sets the display colors for color display
+  def self.set_colors(colors)
+    if Array === colors && colors.size == 4
+      @@colors = colors.map {|c| c.to_i}
+    else
+      throw 'Wrong color definition used in Valeur#set_colors'
+    end
+  end
+
+  def self.set_unicolor
+    @@color_output = false
+  end
 end
 
 # This class holds the tableau (i.e. the full status) of the current game.
 class Tableau
   attr_reader :draws
 
-  def initialize
+  def initialize(open_spider)
+    @open_spider = open_spider
     @base = NrSuit * NrVals
     @columns = Array.new(NrColumns) {Array.new}
     @shuffled = (0...(@base * NrDecks)).map {|i| i % @base}.sort_by {rand}
     @draws = 0
     @pos = (@base * NrDecks - NrDraws * NrColumns)
     @pos.times do |i|
-      @columns[i % NrColumns] << Valeur.new(@shuffled[i])
+      @columns[i % NrColumns] << Valeur.new(@shuffled[i], @open_spider)
     end
     @columns.each {|a_col| a_col[-1].set_visible if a_col[-1]}
+  end
+
+  def set_debug
+    @debug = true
   end
 
   def draw
@@ -106,6 +127,11 @@ class Tableau
     @columns.map {|c| c.size}.max
   end
 
+  # get the values of the future draws
+  def get_draw(offset)
+    @shuffled[@pos + offset * NrColumns, NrColumns].map {|s| Valeur.new(s, true)}
+  end
+
   def to_s
     (0...max_column_size).map {|i_row| (0...NrColumns).map {|i_col| @columns[i_col][i_row].to_s.rjust(2)}.join(' ')}.join("\n")
   end
@@ -121,7 +147,7 @@ class Tableau
 
   # check if a column of the given length maps to the target
   def maps?(col_source, length, col_target)
-    puts "maps? called with (#{col_source}, #{length}, #{col_target})" if Debug
+    puts "maps? called with (#{col_source}, #{length}, #{col_target})" if @debug
     return true if length < 1
 
     source_col = @columns[col_source]
@@ -143,12 +169,12 @@ class Tableau
 
   # map a column of the given length to the target
   def map(col_source, length, col_target)
-    puts "map called with (#{col_source}, #{length}, #{col_target})" if Debug
+    puts "map called with (#{col_source}, #{length}, #{col_target})" if @debug
     if maps?(col_source, length, col_target)
       @columns[col_target].concat(@columns[col_source][(-length)..-1])
       @columns[col_source] = @columns[col_source][0...(-length)]
       @columns[col_source].last.set_visible unless @columns[col_source].empty?
-      puts "map succeeded" if Debug
+      puts "map succeeded" if @debug
       return true
     else
       return false
@@ -158,7 +184,7 @@ class Tableau
   # map a column of maximal length to the target
   # returns the size of the mapped subcolumn
   def map_maximal(col_source, col_target)
-    puts "map_maximal called with (#{col_source}, #{col_target})" if Debug
+    puts "map_maximal called with (#{col_source}, #{col_target})" if @debug
     max_length = max_map_length(col_source)
     source_valeur = @columns[col_source].last
     target_valeur = @columns[col_target].last
@@ -166,7 +192,7 @@ class Tableau
 
     length = [possible_length, max_length].min
 
-    puts "map_maximal determined length at #{length}" if Debug
+    puts "map_maximal determined length at #{length}" if @debug
 
     map(col_source, length, col_target) if length > 0
     length
@@ -209,9 +235,15 @@ class Tableau
   end
 end
 
-def display(tab)
+def display(tab, open_spider)
   puts (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{tab.draws})"
   puts tab
+  if open_spider
+    puts
+    (NrDraws - tab.draws).times do |i|
+      puts tab.get_draw(i).map{|v| v.to_s.rjust(2)}.join(' ')
+    end
+  end
   puts
 end
 
@@ -232,8 +264,59 @@ def help
 end
 
 if $0 == __FILE__
-  tab = Tableau.new
-  display tab
+  # parse command line options
+  options = {}
+
+  optparse = OptionParser.new do |opts|
+    opts.banner = "usage: ruby spid.rb [options]"
+
+    options[:open] = false
+    opts.on('-o', '--open', 'Play Open Spider variant') do
+      options[:open] = true
+    end
+
+    options[:colors] = nil
+    opts.on('-c', '--colors c1,c2,c3,c4', "Color codes of the color display. default #{SuitColor.join(',')}") do |cols|
+      if cols =~ /(\d+),(\d+),(\d+),(\d+)/
+        options[:colors] = [$1, $2, $3, $4].map {|c| c.to_i}
+      else
+        puts "Wrong format for colors"
+        exit
+      end
+    end
+
+    options[:unicolor] = false
+    opts.on('-u', '--unicolor', "Set output to display without colors") do
+      options[:unicolor] = true
+    end
+
+    options[:seed] = false
+    opts.on('-s', '--seed nr', 'Seed random number generator with nr' ) do |nr|
+      options[:seed] = nr.to_i
+    end
+
+    options[:debug] = false
+    opts.on('-d', '--debug', 'Display debug messages' ) do
+      options[:debug] = true
+    end
+
+    opts.on('-h', '--help', 'Display this help' ) do
+      puts opts
+      exit
+    end
+  end
+
+  optparse.parse!
+
+  Valeur.set_colors(options[:colors]) if options[:colors]
+  Valeur.set_unicolor if options[:unicolor]
+
+  srand(options[:seed]) if options[:seed]
+
+  tab = Tableau.new(options[:open])
+  tab.set_debug if options[:debug]
+
+  display(tab, options[:open])
   continue = true
   while continue
     user_input = gets
@@ -301,6 +384,6 @@ if $0 == __FILE__
     else
       puts "Unrecognized command"
     end
-    display tab if redisplay
+    display(tab, options[:open]) if redisplay
   end
 end
