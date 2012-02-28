@@ -30,6 +30,9 @@ NrColumns = 10
 NrDecks = 2
 NrDraws = 5
 
+# show surface development index
+ShowSDI = true
+
 # List of default values for command line options
 SuitColor = [20, 30, 90, 160]
 
@@ -233,10 +236,36 @@ class Tableau
 
     return true
   end
+
+  # Returns the surface development index of the tableau.
+  # This value describes the number of possible first level improvements.
+  def sdi
+    hi = Array.new(NrVals, 0)
+    lo = Array.new(NrVals, 0)
+
+    @columns.each do |col|
+      unless col.empty?
+        value = col.last.val
+        lo[value] += 1
+        pos = col.size - 2
+        while pos >= 0 && ! col[pos].hidden? && col[pos].val == value + 1
+          value = col[pos].val
+          pos -= 1
+        end
+        hi[value] += 1
+      end
+    end
+
+    puts "sdi has \n #{lo.inspect} and \n #{hi.inspect}" if @debug
+    hi[0..-2].zip(lo[1..-1]).inject(0) {|s, (x, y)| s + [x, y].min}
+  end
 end
 
 def display(tab, open_spider)
-  puts (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{tab.draws})"
+  header = (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{tab.draws})"
+  header += " [#{tab.sdi}]" if ShowSDI
+
+  puts header
   puts tab
   if open_spider
     puts
