@@ -256,6 +256,7 @@ def help
   puts "  x(a)(b)(c)(d) extended move from a to d using empty b and c moving 4 stacks"
   puts "  y(a)(b)(c)(d) extended move from a to d using empty b and c but only move 3 stacks"
   puts "  r(a)          remove column a"
+  puts "  rr            remove all possible columns"
   puts "  i             display number of invisibles"
   puts "  v             display list of numbers of visible values"
   puts "  h             display this help"
@@ -340,6 +341,11 @@ if $0 == __FILE__
       else
         puts "Unable to remove"
       end
+    when /^rr/
+      NrColumns.times do |col|
+        while tab.remove(col); end
+      end
+      puts "Removed"
     when /^i/
       puts "invisible: #{tab.nr_invisible}"
       redisplay = false
