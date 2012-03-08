@@ -35,6 +35,7 @@ ShowSDI = true
 
 # List of default values for command line options
 SuitColor = [20, 30, 90, 160]
+SuitFGColor = [7, 4, 7, 4]
 
 # Value class holding individual card values
 # Naming was done to keep consistent with the French vocabulary used in Solitair gaiming
@@ -42,6 +43,7 @@ class Valeur
   attr_reader :suit, :val
 
   @@colors = SuitColor
+  @@colors_fg = SuitFGColor
   @@color_output = true
 
   def initialize(nr, visible)
@@ -68,8 +70,7 @@ class Valeur
   def to_s
     if @visible
       if @@color_output
-        # "\e[48;5;#{SuitColor[@suit]}m#{@suit.to_s(NrSuit)}#{@val.to_s(NrVals)}\e[0m"
-        "\e[48;5;#{@@colors[@suit]}m #{@val.to_s(NrVals)}\e[0m"
+        "\e[38;05;#{@@colors_fg[@suit]};48;5;#{@@colors[@suit]}m #{@val.to_s(NrVals)}\e[0m"
       else
         "#{@suit.to_s(NrSuit)}#{@val.to_s(NrVals)}"
       end
@@ -84,6 +85,15 @@ class Valeur
       @@colors = colors.map {|c| c.to_i}
     else
       throw 'Wrong color definition used in Valeur#set_colors'
+    end
+  end
+
+  # sets the display foreground colors for color display
+  def self.set_fg_colors(colors)
+    if Array === colors && colors.size == 4
+      @@colors_fg = colors.map {|c| c.to_i}
+    else
+      throw 'Wrong color definition used in Valeur#set_fg_colors'
     end
   end
 
@@ -315,6 +325,16 @@ if $0 == __FILE__
       end
     end
 
+    options[:fg_colors] = nil
+    opts.on('-f', '--foreground c1,c2,c3,c4', "Color codes of the foreground colors. default #{SuitFGColor.join(',')}") do |cols|
+      if cols =~ /(\d+),(\d+),(\d+),(\d+)/
+        options[:fg_colors] = [$1, $2, $3, $4].map {|c| c.to_i}
+      else
+        puts "Wrong format for colors"
+        exit
+      end
+    end
+
     options[:unicolor] = false
     opts.on('-u', '--unicolor', "Set output to display without colors") do
       options[:unicolor] = true
@@ -339,6 +359,7 @@ if $0 == __FILE__
   optparse.parse!
 
   Valeur.set_colors(options[:colors]) if options[:colors]
+  Valeur.set_fg_colors(options[:fg_colors]) if options[:fg_colors]
   Valeur.set_unicolor if options[:unicolor]
 
   srand(options[:seed]) if options[:seed]
