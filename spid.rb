@@ -6,7 +6,7 @@
 #
 # Usage: at the prompt type  h  to get the online help
 #
-#   Copyright 2010, 2011 Michael Ulm
+#   Copyright 2010 - 2012 Michael Ulm
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -33,8 +33,10 @@ NrDraws = 5
 # show surface development index
 ShowSDI = true
 
-# List of default values for command line options
-SuitColor = [20, 30, 90, 160]
+ColorOutput = true
+SuitColor = [1, 2, 3, 4]
+SuitColorFG = [37, 30, 30, 37]
+Debug = false # switches debug messages on/off
 
 # Value class holding individual card values
 # Naming was done to keep consistent with the French vocabulary used in Solitair gaiming
@@ -69,7 +71,7 @@ class Valeur
     if @visible
       if @@color_output
         # "\e[48;5;#{SuitColor[@suit]}m#{@suit.to_s(NrSuit)}#{@val.to_s(NrVals)}\e[0m"
-        "\e[48;5;#{@@colors[@suit]}m #{@val.to_s(NrVals)}\e[0m"
+        "\e[0;#{SuitColorFG[@suit]}m\e[48;5;#{SuitColor[@suit]}m #{@val.to_s(NrVals)}\e[0m"
       else
         "#{@suit.to_s(NrSuit)}#{@val.to_s(NrVals)}"
       end
