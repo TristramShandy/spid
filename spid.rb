@@ -22,8 +22,15 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 require 'optparse'
+require 'yaml'
 
-# List of constants
+# Search paths for the config file
+# Name your config file as one of these to automatically load it
+DefaultConfigFiles = ['~/.spidrc', '~/spidrc', './config.yml']
+
+# Default values are used if no config file is found or the options are not defined in it
+#
+# List of default constants
 NrSuit = 4
 NrVals = 13
 NrColumns = 10
@@ -34,10 +41,8 @@ NrDraws = 5
 ShowSDI = true
 
 # List of default values for command line options
-SuitColor = [20, 30, 90, 160]
-SuitFGColor = [7, 4, 7, 4]
-# SuitColor = [1, 2, 3, 4]
-# SuitColorFG = [37, 30, 30, 37]
+SuitColor = [1, 2, 3, 4]
+SuitFGColor = [37, 30, 30, 37]
 
 # Value class holding individual card values
 # Naming was done to keep consistent with the French vocabulary used in Solitair gaiming
@@ -83,6 +88,7 @@ class Valeur
 
   # sets the display colors for color display
   def self.set_colors(colors)
+    return unless colors
     if Array === colors && colors.size == 4
       @@colors = colors.map {|c| c.to_i}
     else
@@ -92,6 +98,7 @@ class Valeur
 
   # sets the display foreground colors for color display
   def self.set_fg_colors(colors)
+    return unless colors
     if Array === colors && colors.size == 4
       @@colors_fg = colors.map {|c| c.to_i}
     else
@@ -276,9 +283,9 @@ class Tableau
   end
 end
 
-def display(tab, open_spider)
+def display(tab, open_spider, show_sdi)
   header = (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{tab.draws})"
-  header += " [#{tab.sdi}]" if ShowSDI
+  header += " [#{tab.sdi}]" if show_sdi
 
   puts header
   puts tab
@@ -360,6 +367,11 @@ if $0 == __FILE__
       options[:debug] = true
     end
 
+    options[:config] = DefaultConfigFiles
+    opts.on('-k', '--config config_file', 'Use the given config file' ) do |conf|
+      options[:config] = [conf]
+    end
+
     opts.on('-h', '--help', 'Display this help' ) do
       puts opts
       exit
@@ -368,8 +380,21 @@ if $0 == __FILE__
 
   optparse.parse!
 
-  Valeur.set_colors(options[:colors]) if options[:colors]
-  Valeur.set_fg_colors(options[:fg_colors]) if options[:fg_colors]
+  config = {}
+  options[:config].each do |conf|
+    full_name = File.expand_path(conf)
+    puts "checking #{full_name}"
+    if File.exists?(full_name)
+      puts "found #{full_name}"
+      config = YAML.load_file(full_name)
+      break
+    end
+  end
+
+  puts config.inspect
+
+  Valeur.set_colors(options[:colors] || config["suit_color"])
+  Valeur.set_fg_colors(options[:fg_colors] || config["suit_fg_color"])
   Valeur.set_unicolor if options[:unicolor]
 
   srand(options[:seed]) if options[:seed]
@@ -377,7 +402,12 @@ if $0 == __FILE__
   tab = Tableau.new(options[:open], options[:xtra_hard])
   tab.set_debug if options[:debug]
 
-  display(tab, options[:open])
+  # display options
+  show_sdi = ShowSDI
+  show_sdi = config["show_sdi"] unless config["show_sdi"].nil?
+  show_open = options[:open]
+
+  display(tab, show_open, show_sdi)
   continue = true
   while continue
     user_input = gets
@@ -450,6 +480,6 @@ if $0 == __FILE__
     else
       puts "Unrecognized command"
     end
-    display(tab, options[:open]) if redisplay
+    display(tab, show_open, show_sdi) if redisplay
   end
 end

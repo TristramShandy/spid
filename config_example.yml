@@ -1,0 +1,13 @@
+# Example config file for the spid project
+#
+#
+# Display options
+#
+# Background colors:
+suit_color: [20, 30, 90, 160]
+#
+# Foreground colors:
+suit_fg_color: [7, 4, 7, 4]
+#
+# Show surface development index at each move
+show_sdi: true
