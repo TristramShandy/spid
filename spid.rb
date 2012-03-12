@@ -6,7 +6,7 @@
 #
 # Usage: at the prompt type  h  to get the online help
 #
-#   Copyright 2010, 2011 Michael Ulm
+#   Copyright 2010 - 2012 Michael Ulm
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -36,6 +36,8 @@ ShowSDI = true
 # List of default values for command line options
 SuitColor = [20, 30, 90, 160]
 SuitFGColor = [7, 4, 7, 4]
+# SuitColor = [1, 2, 3, 4]
+# SuitColorFG = [37, 30, 30, 37]
 
 # Value class holding individual card values
 # Naming was done to keep consistent with the French vocabulary used in Solitair gaiming
