@@ -106,17 +106,20 @@ end
 class Tableau
   attr_reader :draws
 
-  def initialize(open_spider)
+  def initialize(open_spider, xtra_hard = false)
     @open_spider = open_spider
     @base = NrSuit * NrVals
-    @columns = Array.new(NrColumns) {Array.new}
-    @shuffled = (0...(@base * NrDecks)).map {|i| i % @base}.sort_by {rand}
     @draws = 0
-    @pos = (@base * NrDecks - NrDraws * NrColumns)
-    @pos.times do |i|
-      @columns[i % NrColumns] << Valeur.new(@shuffled[i], @open_spider)
-    end
-    @columns.each {|a_col| a_col[-1].set_visible if a_col[-1]}
+
+    begin
+      @columns = Array.new(NrColumns) {Array.new}
+      @shuffled = (0...(@base * NrDecks)).map {|i| i % @base}.sort_by {rand}
+      @pos = (@base * NrDecks - NrDraws * NrColumns)
+      @pos.times do |i|
+        @columns[i % NrColumns] << Valeur.new(@shuffled[i], @open_spider)
+      end
+      @columns.each {|a_col| a_col[-1].set_visible if a_col[-1]}
+    end while xtra_hard && sdi != 0
   end
 
   def set_debug
@@ -345,6 +348,11 @@ if $0 == __FILE__
       options[:seed] = nr.to_i
     end
 
+    options[:xtra_hard] = false
+    opts.on('-x', '--xtra', "Extra hard starting hands (for masochists only)") do
+      options[:xtra_hard] = true
+    end
+
     options[:debug] = false
     opts.on('-d', '--debug', 'Display debug messages' ) do
       options[:debug] = true
@@ -364,7 +372,7 @@ if $0 == __FILE__
 
   srand(options[:seed]) if options[:seed]
 
-  tab = Tableau.new(options[:open])
+  tab = Tableau.new(options[:open], options[:xtra_hard])
   tab.set_debug if options[:debug]
 
   display(tab, options[:open])
