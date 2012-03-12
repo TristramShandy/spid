@@ -383,15 +383,11 @@ if $0 == __FILE__
   config = {}
   options[:config].each do |conf|
     full_name = File.expand_path(conf)
-    puts "checking #{full_name}"
     if File.exists?(full_name)
-      puts "found #{full_name}"
       config = YAML.load_file(full_name)
       break
     end
   end
-
-  puts config.inspect
 
   Valeur.set_colors(options[:colors] || config["suit_color"])
   Valeur.set_fg_colors(options[:fg_colors] || config["suit_fg_color"])
