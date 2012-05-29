@@ -128,7 +128,7 @@ class Tableau
         @columns[i % NrColumns] << Valeur.new(@shuffled[i], @open_spider)
       end
       @columns.each {|a_col| a_col[-1].set_visible if a_col[-1]}
-    end while xtra_hard && sdi != 0
+    end while xtra_hard && ! sdi.empty?
   end
 
   def set_debug
@@ -279,7 +279,12 @@ class Tableau
     end
 
     puts "sdi has \n #{lo.inspect} and \n #{hi.inspect}" if @debug
-    hi[0..-2].zip(lo[1..-1]).inject(0) {|s, (x, y)| s + [x, y].min}
+    # hi[0..-2].zip(lo[1..-1]).inject(0) {|s, (x, y)| s + [x, y].min}
+    result = []
+    (NrVals - 1).times do |i_val|
+      [hi[i_val], lo[i_val + 1]].min.times {result << i_val.to_s(NrVals)}
+    end
+    result
   end
 
   # check if the Tableau is empty
@@ -293,7 +298,7 @@ end
 
 def display(tab, open_spider, show_sdi)
   header = (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{tab.draws})"
-  header += " [#{tab.sdi}]" if show_sdi
+  header = "[#{tab.sdi.join(' ')}]\n#{header}" if show_sdi
 
   puts header
   puts tab
@@ -485,6 +490,6 @@ if $0 == __FILE__
       puts "Unrecognized command"
     end
     display(tab, show_open, show_sdi) if redisplay
-    puts "Congratulations, you won" if tab.empty?
+    puts "Congratulations, you won!" if tab.empty?
   end
 end
