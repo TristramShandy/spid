@@ -281,6 +281,14 @@ class Tableau
     puts "sdi has \n #{lo.inspect} and \n #{hi.inspect}" if @debug
     hi[0..-2].zip(lo[1..-1]).inject(0) {|s, (x, y)| s + [x, y].min}
   end
+
+  # check if the Tableau is empty
+  def empty?
+    @columns.each do |col|
+      return false unless col.empty?
+    end
+    true
+  end
 end
 
 def display(tab, open_spider, show_sdi)
@@ -477,5 +485,6 @@ if $0 == __FILE__
       puts "Unrecognized command"
     end
     display(tab, show_open, show_sdi) if redisplay
+    puts "Congratulations, you won" if tab.empty?
   end
 end
