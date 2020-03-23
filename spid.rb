@@ -462,6 +462,17 @@ if $0 == __FILE__
     when /^q/
       continue = false
       redisplay = false
+    when /^s(\d)(\d)(\d)(\d)(\d)/
+      tab.map_maximal($1.to_i, $5.to_i)
+      tab.map_maximal($2.to_i, $1.to_i)
+      tab.map_maximal($3.to_i, $2.to_i)
+      tab.map_maximal($4.to_i, $3.to_i)
+      tab.map_maximal($5.to_i, $4.to_i)
+    when /^s(\d)(\d)(\d)(\d)/
+      tab.map_maximal($1.to_i, $4.to_i)
+      tab.map_maximal($2.to_i, $1.to_i)
+      tab.map_maximal($3.to_i, $2.to_i)
+      tab.map_maximal($4.to_i, $3.to_i)
     when /^s(\d)(\d)(\d)/
       tab.map_maximal($1.to_i, $3.to_i)
       tab.map_maximal($2.to_i, $1.to_i)
