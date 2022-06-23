@@ -111,6 +111,47 @@ class Valeur
   end
 end
 
+def find_path_recursive(ar_cycle, i_from, i_to, path, size)
+  return i_from == i_to if size == 0
+  ar_cycle.each do |to_check|
+    if (! path.include?(to_check[0])) && to_check[1] == i_to
+      path << to_check[0]
+      if find_path_recursive(ar_cycle, i_from, to_check[2], path, size - 1)
+        return true
+      end
+      path.pop
+    end
+  end
+  return false
+end
+
+def get_cycle(ar_cycle, nr_cycle)
+  ar_cycle.each do |initial|
+    path = [initial[0]]
+    if find_path_recursive(ar_cycle, initial[1], initial[2], path, nr_cycle - 1)
+      return path
+    end
+  end
+  []
+end
+
+# helper function to sort data into permutations
+def sort_clear(ar_clear)
+  result = []
+  nr_cycle = 2
+  while ! ar_clear.empty?
+    cycle = get_cycle(ar_clear, nr_cycle)
+    if cycle.empty?
+      nr_cycle += 1
+      raise "Unable to find cycles" if nr_cycle > NrSuit
+    else
+      ar_clear.delete_if {|t| cycle.include?(t[0])}
+      result << cycle
+    end
+  end
+  return result
+end
+
 # This class holds the tableau (i.e. the full status) of the current game.
 class Tableau
   attr_reader :draws
@@ -133,6 +174,11 @@ class Tableau
 
   def set_debug
     @debug = true
+  end
+
+  # setting columns
+  def set_tableau(cols)
+    @columns = cols
   end
 
   def draw
@@ -223,6 +269,12 @@ class Tableau
     length
   end
 
+  def cycle_map_maximal(columns, filler)
+    map_maximal(columns[0], filler)
+    (1...columns.size).each {|i| map_maximal(columns[i], columns[i - 1])}
+    map_maximal(filler, columns[-1])
+  end
+
   # returns the longest possible length that the given column can move
   def max_map_length(col)
     source_col = @columns[col]
@@ -294,6 +346,65 @@ class Tableau
     end
     true
   end
+
+  def get_first_empty
+    @columns.each_with_index do |col, i_col|
+      return i_col if col.empty?
+    end
+    nil
+  end
+
+  def get_filled
+    filled = []
+    @columns.each_with_index {|col, i_col| filled << i_col unless col.empty?}
+    filled
+  end
+
+  def autofinish_possible?
+    @columns.each_with_index do |col, i_col|
+      if ! col.empty?
+        return false unless col.size == NrVals
+        NrVals.times do |pos|
+          return false if (! col[pos].visible? || col[pos].val != NrVals - 1 - pos)
+        end
+      end
+    end
+    true
+  end
+
+  def autofinish_clear_info(pos, filled)
+    result = []
+    filled.each do |i_col|
+      s_hi = @columns[i_col][pos].suit
+      s_lo = @columns[i_col][pos - 1].suit
+      if s_hi != s_lo
+        result << [i_col, s_hi, s_lo]
+      end
+    end
+    result
+  end
+
+  def autofinish
+    return nil unless autofinish_possible?
+
+    # count permutations
+    filled = get_filled
+    i_empty = get_first_empty
+
+    perm_info = {}
+    (NrVals - 1).downto(1) do |pos|
+      to_clear = autofinish_clear_info(pos, filled)
+
+      sort_clear(to_clear).each do |clear_info|
+        nr_clear = clear_info.size
+        perm_info[nr_clear] ||= 0
+        perm_info[nr_clear] += 1
+
+        cycle_map_maximal(clear_info, i_empty)
+      end
+    end
+    return perm_info
+  end
 end
 
 def display(tab, open_spider, show_sdi)
@@ -313,6 +424,7 @@ end
 
 def help
   puts "Commands"
+  puts "  d             pull down next row from stack"
   puts "  (a1)(b1)[(a2)(b2)...] move from columns ai to columns bi as much as possible"
   puts "  m(a)(n)(b)    move n from column a to column b"
   puts "  s(a)(b)(c)    swap a and b using free column c. equivalent to the moves ac ba cb"
@@ -325,6 +437,7 @@ def help
   puts "  v             display list of numbers of visible values"
   puts "  h             display this help"
   puts "  c(v)          display number of visible values v"
+  puts "  f             auto finish if possible"
   puts "  q             quit"
 end
 
@@ -459,6 +572,16 @@ if $0 == __FILE__
     when /^h/
       help
       redisplay = false
+    when /^f/
+      result = tab.autofinish
+      if result.nil?
+        puts "unable to auto finish"
+      else
+        puts "finished with permutations:"
+        result.each do |perm, count|
+          puts "  #{perm}: #{count}"
+        end
+      end
     when /^q/
       continue = false
       redisplay = false
