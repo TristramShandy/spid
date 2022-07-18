@@ -275,6 +275,12 @@ class Tableau
     map_maximal(filler, columns[-1])
   end
 
+  def move_map_maximal(source, empty, target)
+    map_maximal(source, empty)
+    map_maximal(source, target)
+    map_maximal(empty, target)
+  end
+
   # returns the longest possible length that the given column can move
   def max_map_length(col)
     source_col = @columns[col]
@@ -407,42 +413,7 @@ class Tableau
   end
 end
 
-def display(tab, open_spider, show_sdi)
-  header = (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{tab.draws})"
-  header = "[#{tab.sdi.join(' ')}]\n#{header}" if show_sdi
-
-  puts header
-  puts tab
-  if open_spider
-    puts
-    (NrDraws - tab.draws).times do |i|
-      puts tab.get_draw(i).map{|v| v.to_s.rjust(2)}.join(' ')
-    end
-  end
-  puts
-end
-
-def help
-  puts "Commands"
-  puts "  d             pull down next row from stack"
-  puts "  (a1)(b1)[(a2)(b2)...] move from columns ai to columns bi as much as possible"
-  puts "  m(a)(n)(b)    move n from column a to column b"
-  puts "  s(a)(b)(c)    swap a and b using free column c. equivalent to the moves ac ba cb"
-  puts "  x(a)(b)(c)    extended move from a to c using empty b moving 2 stacks"
-  puts "  x(a)(b)(c)(d) extended move from a to d using empty b and c moving 4 stacks"
-  puts "  y(a)(b)(c)(d) extended move from a to d using empty b and c but only move 3 stacks"
-  puts "  r(a)          remove column a"
-  puts "  rr            remove all possible columns"
-  puts "  i             display number of invisibles"
-  puts "  v             display list of numbers of visible values"
-  puts "  h             display this help"
-  puts "  c(v)          display number of visible values v"
-  puts "  f             auto finish if possible"
-  puts "  q             quit"
-end
-
-if $0 == __FILE__
-  # parse command line options
+def parse_options
   options = {}
 
   optparse = OptionParser.new do |opts|
@@ -505,125 +476,166 @@ if $0 == __FILE__
   end
 
   optparse.parse!
+  options
+end
 
-  config = {}
-  options[:config].each do |conf|
-    full_name = File.expand_path(conf)
-    if File.exists?(full_name)
-      config = YAML.load_file(full_name)
-      break
-    end
+class Table
+  def initialize(options)
+    @options = options
+    parse_config
+    Valeur.set_colors(@options[:colors])
+    Valeur.set_fg_colors(@options[:fg_colors])
+    Valeur.set_unicolor if @options[:unicolor]
+    @seed = @options[:seed] || Random.new_seed
+    srand(@seed)
+    puts seed_str
+
+
+    @tab = Tableau.new(@options[:open], @options[:xtra_hard])
+    @tab.set_debug if @options[:debug]
   end
 
-  Valeur.set_colors(options[:colors] || config["suit_color"])
-  Valeur.set_fg_colors(options[:fg_colors] || config["suit_fg_color"])
-  Valeur.set_unicolor if options[:unicolor]
+  def seed_str
+    "rng seed is #{@seed}"
+  end
 
-  srand(options[:seed]) if options[:seed]
-
-  tab = Tableau.new(options[:open], options[:xtra_hard])
-  tab.set_debug if options[:debug]
-
-  # display options
-  show_sdi = ShowSDI
-  show_sdi = config["show_sdi"] unless config["show_sdi"].nil?
-  show_open = options[:open]
-
-  display(tab, show_open, show_sdi)
-  continue = true
-  while continue
-    user_input = gets
-    redisplay = true
-    case user_input
-    when /^(\d)(\d)/
-      temp_input = user_input.dup
-      temp_length = 2
-      while temp_length > 0 && temp_input =~ /^(\d)(\d)/
-        temp_length = tab.map_maximal($1.to_i, $2.to_i)
-        temp_input = temp_input[2..-1]
+  def parse_config
+    config = {}
+    @options[:config].each do |conf|
+      full_name = File.expand_path(conf)
+      if File.exists?(full_name)
+        config = YAML.load_file(full_name)
+        break
       end
-    when /^d/
-      tab.draw
-      puts "Draw #{tab.draws}"
-    when /^m(\d)(\d)(\d)/
-      tab.map($1.to_i, $2.to_i,$3.to_i)
-    when /^r(\d)/
-      if tab.remove($1.to_i)
-        puts "Removed"
-      else
-        puts "Unable to remove"
+    end
+
+    @options[:colors] ||= config["suit_color"]
+    @options[:fg_colors] ||= config["suit_fg_color"]
+    @options[:show_sdi] = config["show_sdi"] || ShowSDI
+  end
+
+  def display
+    header = (0...NrColumns).map {|col| col.to_s.rjust(2)}.join(' ') + "   (#{@tab.draws})"
+    header = "[#{@tab.sdi.join(' ')}]\n#{header}" if @options[:show_sdi]
+
+    puts header
+    puts @tab
+    if @options[:open]
+      puts
+      (NrDraws - @tab.draws).times do |i|
+        puts @tab.get_draw(i).map{|v| v.to_s.rjust(2)}.join(' ')
       end
-    when /^rr/
-      NrColumns.times do |col|
-        while tab.remove(col); end
-      end
-      puts "Removed"
-    when /^i/
-      puts "invisible: #{tab.nr_invisible}"
-      redisplay = false
-    when /^c(.)/
-      # WARNING This only works atm. for NrVals < 17
-      puts "nr #{$1}: #{tab.nr_val_visible($1.hex)}"
-      redisplay = false
-    when /^v/
-      puts (0...NrVals).map {|a_val| a_val.to_s(NrVals)}.join(' ')
-      puts (0...NrVals).map {|a_val| tab.nr_val_visible(a_val)}.join(' ')
-      redisplay = false
-    when /^h/
-      help
-      redisplay = false
-    when /^f/
-      result = tab.autofinish
-      if result.nil?
-        puts "unable to auto finish"
-      else
-        puts "finished with permutations:"
-        result.each do |perm, count|
-          puts "  #{perm}: #{count}"
+    end
+    puts
+  end
+
+  def game_loop
+    continue = true
+    while continue
+      user_input = gets
+      redisplay = true
+      case user_input
+      when /^(\d)(\d)/
+        temp_input = user_input.dup
+        temp_length = 2
+        while temp_length > 0 && temp_input =~ /^(\d)(\d)/
+          temp_length = @tab.map_maximal($1.to_i, $2.to_i)
+          temp_input = temp_input[2..-1]
         end
+      when /^d/
+        @tab.draw
+        puts "Draw #{@tab.draws}"
+      when /^m(\d)(\d)(\d)/
+        @tab.map($1.to_i, $2.to_i,$3.to_i)
+      when /^r(\d)/
+        if @tab.remove($1.to_i)
+          puts "Removed"
+        else
+          puts "Unable to remove"
+        end
+      when /^rr/
+        NrColumns.times do |col|
+          while @tab.remove(col); end
+        end
+        puts "Removed"
+      when /^i/
+        puts "invisible: #{@tab.nr_invisible}"
+        redisplay = false
+      when /^c(.)/
+        # WARNING This only works atm. for NrVals < 17
+        puts "nr #{$1}: #{@tab.nr_val_visible($1.hex)}"
+        redisplay = false
+      when /^v/
+        puts (0...NrVals).map {|a_val| a_val.to_s(NrVals)}.join(' ')
+        puts (0...NrVals).map {|a_val| @tab.nr_val_visible(a_val)}.join(' ')
+        redisplay = false
+      when /^h/
+        help
+        redisplay = false
+      when /^f/
+        result = @tab.autofinish
+        if result.nil?
+          puts "unable to auto finish"
+        else
+          puts "finished with permutations:"
+          result.each do |perm, count|
+            puts "  #{perm}: #{count}"
+          end
+        end
+      when /^q/
+        continue = false
+        redisplay = false
+      when /^s(\d)(\d)(\d)(\d)(\d)/
+        @tab.cycle_map_maximal([$1.to_i, $2.to_i, $3.to_i, $4.to_i], $5.to_i)
+      when /^s(\d)(\d)(\d)(\d)/
+        @tab.cycle_map_maximal([$1.to_i, $2.to_i, $3.to_i], $4.to_i)
+      when /^s(\d)(\d)(\d)/
+        @tab.cycle_map_maximal([$1.to_i, $2.to_i], $3.to_i)
+      when /^x(\d)(\d)(\d)(\d)/
+        @tab.move_map_maximal($1.to_i, $2.to_i, $3.to_i)
+        @tab.move_map_maximal($1.to_i, $2.to_i, $4.to_i)
+        @tab.move_map_maximal($3.to_i, $2.to_i, $4.to_i)
+      when /^x(\d)(\d)(\d)/
+        @tab.move_map_maximal($1.to_i, $2.to_i, $3.to_i)
+      when /^y(\d)(\d)(\d)(\d)/
+        @tab.map_maximal($1.to_i, $2.to_i)
+        @tab.move_map_maximal($1.to_i, $3.to_i, $4.to_i)
+        @tab.map_maximal($2.to_i, $4.to_i)
+      when /^g/
+        puts seed_str
+        redisplay = false
+      else
+        puts "Unrecognized command"
       end
-    when /^q/
-      continue = false
-      redisplay = false
-    when /^s(\d)(\d)(\d)(\d)(\d)/
-      tab.map_maximal($1.to_i, $5.to_i)
-      tab.map_maximal($2.to_i, $1.to_i)
-      tab.map_maximal($3.to_i, $2.to_i)
-      tab.map_maximal($4.to_i, $3.to_i)
-      tab.map_maximal($5.to_i, $4.to_i)
-    when /^s(\d)(\d)(\d)(\d)/
-      tab.map_maximal($1.to_i, $4.to_i)
-      tab.map_maximal($2.to_i, $1.to_i)
-      tab.map_maximal($3.to_i, $2.to_i)
-      tab.map_maximal($4.to_i, $3.to_i)
-    when /^s(\d)(\d)(\d)/
-      tab.map_maximal($1.to_i, $3.to_i)
-      tab.map_maximal($2.to_i, $1.to_i)
-      tab.map_maximal($3.to_i, $2.to_i)
-    when /^x(\d)(\d)(\d)(\d)/
-      tab.map_maximal($1.to_i, $2.to_i)
-      tab.map_maximal($1.to_i, $3.to_i)
-      tab.map_maximal($2.to_i, $3.to_i)
-      tab.map_maximal($1.to_i, $2.to_i)
-      tab.map_maximal($1.to_i, $4.to_i)
-      tab.map_maximal($2.to_i, $4.to_i)
-      tab.map_maximal($3.to_i, $2.to_i)
-      tab.map_maximal($3.to_i, $4.to_i)
-      tab.map_maximal($2.to_i, $4.to_i)
-    when /^x(\d)(\d)(\d)/
-      tab.map_maximal($1.to_i, $2.to_i)
-      tab.map_maximal($1.to_i, $3.to_i)
-      tab.map_maximal($2.to_i, $3.to_i)
-    when /^y(\d)(\d)(\d)(\d)/
-      tab.map_maximal($1.to_i, $2.to_i)
-      tab.map_maximal($1.to_i, $3.to_i)
-      tab.map_maximal($1.to_i, $4.to_i)
-      tab.map_maximal($3.to_i, $4.to_i)
-      tab.map_maximal($2.to_i, $4.to_i)
-    else
-      puts "Unrecognized command"
+      display if redisplay
+      puts "Congratulations, you won!" if @tab.empty?
     end
-    display(tab, show_open, show_sdi) if redisplay
-    puts "Congratulations, you won!" if tab.empty?
   end
+end
+
+def help
+  puts "Commands"
+  puts "  d             pull down next row from stack"
+  puts "  (a1)(b1)[(a2)(b2)...] move from columns ai to columns bi as much as possible"
+  puts "  m(a)(n)(b)    move n from column a to column b"
+  puts "  s(a)(b)(c)    swap a and b using free column c. equivalent to the moves ac ba cb"
+  puts "  x(a)(b)(c)    extended move from a to c using empty b moving 2 stacks"
+  puts "  x(a)(b)(c)(d) extended move from a to d using empty b and c moving 4 stacks"
+  puts "  y(a)(b)(c)(d) extended move from a to d using empty b and c but only move 3 stacks"
+  puts "  r(a)          remove column a"
+  puts "  rr            remove all possible columns"
+  puts "  i             display number of invisibles"
+  puts "  v             display list of numbers of visible values"
+  puts "  h             display this help"
+  puts "  c(v)          display number of visible values v"
+  puts "  f             auto finish if possible"
+  puts "  g             print rng seed"
+  puts "  q             quit"
+end
+
+if $0 == __FILE__
+  table = Table.new(parse_options)
+  table.display
+  table.game_loop
+
 end
