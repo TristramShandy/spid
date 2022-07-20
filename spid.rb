@@ -503,7 +503,7 @@ class Table
     config = {}
     @options[:config].each do |conf|
       full_name = File.expand_path(conf)
-      if File.exists?(full_name)
+      if File.exist?(full_name)
         config = YAML.load_file(full_name)
         break
       end
